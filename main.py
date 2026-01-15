@@ -3,7 +3,10 @@ from tkinter import ttk
 from typing import Optional
 import cv2
 from PIL import Image, ImageTk
-from windows_person_detection_window_switch import get_all_windows, convert_windows_list_to_list_of_strings
+from ultralytics import YOLO
+import supervision as sv
+import numpy as np
+from windows_person_detection_window_switch import get_all_windows, convert_windows_list_to_list_of_strings, switch_to_window
 
 
 def list_ports():
@@ -37,13 +40,18 @@ class WebcamApp:
     def __init__(self, window: tk.Tk) -> None:
         self.window = window
         self.window.title("Webcam Viewer")
+
+
+        # ---------- Detect Webcams ----------
         cameras = list_ports()
         cameras = cameras[1]
         cameras = [str(c) for c in cameras]
         
+        # ---------- Detect App Windows ----------
+        self.windows = get_all_windows()
         app_windows = get_all_windows()
         app_windows = convert_windows_list_to_list_of_strings(app_windows)
-        print(app_windows)
+        self.target_window_number = 0
 
         # ---------- Dropdown ----------
         self.camera_var = tk.StringVar(value="0")
@@ -76,6 +84,23 @@ class WebcamApp:
             "<<ComboboxSelected>>", self.on_app_window_change
         )
 
+        # ---------- Setup Human Detection ----------
+        self.model = YOLO('yolov8s.pt', verbose=False)
+        width = 0
+        height = 0
+        self.polygon = np.array([
+            [0, 0],
+            [width, 0],
+            [width, height],
+            [0, height]
+        ])
+        self.zone = sv.PolygonZone(polygon=self.polygon)
+
+        # initiate annotators
+        self.box_annotator = sv.BoxAnnotator(thickness=4)
+        self.label_annotator = sv.LabelAnnotator(text_thickness=4, text_scale=2)
+        self.zone_annotator = sv.PolygonZoneAnnotator(zone=self.zone, color=sv.Color.WHITE, thickness=6, text_thickness=6, text_scale=4)
+
         # ---------- Video ----------
         self.label = tk.Label(window)
         self.label.pack()
@@ -88,11 +113,27 @@ class WebcamApp:
 
         self.window.protocol("WM_DELETE_WINDOW", self.on_close)
 
+
     def open_camera(self, index: int) -> None:
         if self.cap is not None and self.cap.isOpened():
             self.cap.release()
 
         self.cap = cv2.VideoCapture(index)
+
+        width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.polygon = np.array([
+            [0, 0],
+            [width, 0],
+            [width, height],
+            [0, height]
+        ])
+        self.zone = sv.PolygonZone(polygon=self.polygon)
+
+        # initiate annotators
+        self.box_annotator = sv.BoxAnnotator(thickness=4)
+        self.label_annotator = sv.LabelAnnotator(text_thickness=4, text_scale=2)
+        self.zone_annotator = sv.PolygonZoneAnnotator(zone=self.zone, color=sv.Color.WHITE, thickness=6, text_thickness=6, text_scale=4)
 
     def on_camera_change(self, _: tk.Event) -> None:
         index = int(self.camera_var.get())
@@ -102,6 +143,21 @@ class WebcamApp:
         if self.cap is not None and self.cap.isOpened():
             ret, frame = self.cap.read()
             if ret:
+                results = self.model.predict(source=frame, verbose=False)[0]
+                detections = sv.Detections.from_ultralytics(results)
+                detections = detections[detections.class_id == 0]
+                self.zone.trigger(detections=detections)
+
+                # annotate
+                labels = [f"{self.model.names[class_id]} {confidence:0.2f}" for _, _, confidence, class_id, _, _ in detections]
+                frame = self.box_annotator.annotate(scene=frame, detections=detections)
+                frame = self.label_annotator.annotate(scene=frame, detections=detections, labels=labels)
+
+                number = len(detections)
+                if 0 < number:
+                    hwnd, title = self.windows[self.target_window_number]
+                    switch_to_window(hwnd, title)
+
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                 img = Image.fromarray(frame)
@@ -117,6 +173,8 @@ class WebcamApp:
     
     def on_app_window_change(self, _: tk.Event) -> None:
         selected_window = self.app_window_var.get()
+        self.target_window_number = int(selected_window.split(".")[0]) - 1
+        print(self.target_window_number)
         print("Selected app window:", selected_window)
 
 

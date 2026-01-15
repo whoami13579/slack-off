@@ -56,6 +56,16 @@ def display_windows(windows: List[Tuple[int, str]]) -> None:
         print(f"{i}. {display_title}")
     print("================================\n")
 
+
+def convert_windows_list_to_list_of_strings(windows: List[Tuple[int, str]]) -> list[str]:
+    result = []
+    for i, (hwnd, title) in enumerate(windows[:10], 1):
+        # Truncate long titles
+        display_title: str = title[:70] + "..." if len(title) > 70 else title
+        result.append(f"{i}. {display_title}")
+
+    return result
+
 def switch_to_window(hwnd: int, title: str) -> bool:
     """Bring the selected window to front"""
     # First verify the window still exists
@@ -121,66 +131,67 @@ def switch_to_window(hwnd: int, title: str) -> bool:
             print(f"   Try running this script as administrator.")
             return False
 
-model = YOLO('yolov8s.pt', verbose=False)
+if __name__ == "__main__":
+    model = YOLO('yolov8s.pt', verbose=False)
 
-cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)
 
-if not cap.isOpened():
-    print("Cannot open camera")
+    if not cap.isOpened():
+        print("Cannot open camera")
 
-width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-polygon = np.array([
-    [0, 0],
-    [width, 0],
-    [width, height],
-    [0, height]
-])
-zone = sv.PolygonZone(polygon=polygon)
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    polygon = np.array([
+        [0, 0],
+        [width, 0],
+        [width, height],
+        [0, height]
+    ])
+    zone = sv.PolygonZone(polygon=polygon)
 
-# initiate annotators
-box_annotator = sv.BoxAnnotator(thickness=4)
-label_annotator = sv.LabelAnnotator(text_thickness=4, text_scale=2)
-zone_annotator = sv.PolygonZoneAnnotator(zone=zone, color=sv.Color.WHITE, thickness=6, text_thickness=6, text_scale=4)
-
-
-previous_number = 0
+    # initiate annotators
+    box_annotator = sv.BoxAnnotator(thickness=4)
+    label_annotator = sv.LabelAnnotator(text_thickness=4, text_scale=2)
+    zone_annotator = sv.PolygonZoneAnnotator(zone=zone, color=sv.Color.WHITE, thickness=6, text_thickness=6, text_scale=4)
 
 
-windows: List[Tuple[int, str]] = get_all_windows()
-display_windows(windows[:10])
-while True:
-    ret, frame = cap.read()
+    previous_number = 0
 
-    if not ret:
-        print("Can't receive frame. Exiting ...")
-        break
 
-    if cv2.waitKey(30) == ord('q'):
-        break
+    windows: List[Tuple[int, str]] = get_all_windows()
+    display_windows(windows[:10])
+    while True:
+        ret, frame = cap.read()
 
-    # detect
-    results = model.predict(source=frame, verbose=False)[0]
-    detections = sv.Detections.from_ultralytics(results)
-    detections = detections[detections.class_id == 0]
-    zone.trigger(detections=detections)
-
-    # annotate
-    labels = [f"{model.names[class_id]} {confidence:0.2f}" for _, _, confidence, class_id, _, _ in detections]
-    frame = box_annotator.annotate(scene=frame, detections=detections)
-    frame = label_annotator.annotate(scene=frame, detections=detections, labels=labels)
-
-    number = len(detections)
-    if number != previous_number:
-        print(number)
-        previous_number = number
-    cv2.imshow("frame", frame)
-    if 0 < number:
-        hwnd: int
-        title: str
-        hwnd, title = windows[0]
-        if switch_to_window(hwnd, title):
+        if not ret:
+            print("Can't receive frame. Exiting ...")
             break
 
-cap.release()
-cv2.destroyAllWindows()
+        if cv2.waitKey(30) == ord('q'):
+            break
+
+        # detect
+        results = model.predict(source=frame, verbose=False)[0]
+        detections = sv.Detections.from_ultralytics(results)
+        detections = detections[detections.class_id == 0]
+        zone.trigger(detections=detections)
+
+        # annotate
+        labels = [f"{model.names[class_id]} {confidence:0.2f}" for _, _, confidence, class_id, _, _ in detections]
+        frame = box_annotator.annotate(scene=frame, detections=detections)
+        frame = label_annotator.annotate(scene=frame, detections=detections, labels=labels)
+
+        number = len(detections)
+        if number != previous_number:
+            print(number)
+            previous_number = number
+        cv2.imshow("frame", frame)
+        if 0 < number:
+            hwnd: int
+            title: str
+            hwnd, title = windows[0]
+            if switch_to_window(hwnd, title):
+                break
+
+    cap.release()
+    cv2.destroyAllWindows()

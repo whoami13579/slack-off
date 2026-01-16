@@ -40,6 +40,7 @@ class WebcamApp:
     def __init__(self, window: tk.Tk) -> None:
         self.window = window
         self.window.title("Webcam Viewer")
+        self.run = False
 
 
         # ---------- Detect Webcams ----------
@@ -83,6 +84,25 @@ class WebcamApp:
         self.app_window_selector.bind(
             "<<ComboboxSelected>>", self.on_app_window_change
         )
+
+        # ---------- Start Button ----------
+        self.start_button = ttk.Button(
+            window,
+            text="Start",
+            command=self.on_start_click
+        )
+        self.start_button.pack(pady=10)
+
+        # ---------- Run State Label ----------
+        self.run_state_var = tk.StringVar(value="Not running")
+
+        self.run_state_label = ttk.Label(
+            window,
+            textvariable=self.run_state_var,
+            font=("Segoe UI", 10, "bold")
+        )
+        self.run_state_label.pack(pady=5)
+        self.run_state_label.config(foreground="red")
 
         # ---------- Setup Human Detection ----------
         self.model = YOLO('yolov8s.pt', verbose=False)
@@ -154,9 +174,12 @@ class WebcamApp:
                 frame = self.label_annotator.annotate(scene=frame, detections=detections, labels=labels)
 
                 number = len(detections)
-                if 0 < number:
+                if (0 < number) and self.run is True:
                     hwnd, title = self.windows[self.target_window_number]
                     switch_to_window(hwnd, title)
+                    self.run = False
+                    self.run_state_var.set("Not running")
+                    self.run_state_label.config(foreground="red")
 
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -176,6 +199,13 @@ class WebcamApp:
         self.target_window_number = int(selected_window.split(".")[0]) - 1
         print(self.target_window_number)
         print("Selected app window:", selected_window)
+
+    def on_start_click(self) -> None:
+        self.run = True
+        self.run_state_var.set("Running")
+        self.run_state_label.config(foreground="green")
+        print("Detection started")
+
 
 
 if __name__ == "__main__":

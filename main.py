@@ -56,32 +56,48 @@ class WebcamApp:
         self.target_window_number = 0
 
         # ---------- Dropdown ----------
+        choose_camera_frame = ttk.Frame(window)
+        choose_camera_frame.pack(pady=5)
+
+        ttk.Label(
+            choose_camera_frame,
+            text="Choose camera:",
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
         self.camera_var = tk.StringVar(value="0")
 
         self.camera_selector = ttk.Combobox(
-            window,
+            choose_camera_frame,
             textvariable=self.camera_var,
             values=cameras,
             state="readonly",
             width=10,
         )
-        self.camera_selector.pack(pady=5)
+        self.camera_selector.pack(side=tk.LEFT)
         self.camera_selector.bind("<<ComboboxSelected>>", self.on_camera_change)
 
 
         # ---------- App Window Dropdown ----------
+        choose_window_frame = ttk.Frame(window)
+        choose_window_frame.pack(pady=5)
+
+        ttk.Label(
+            choose_window_frame,
+            text="Choose target app window:",
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
         self.app_window_var = tk.StringVar(
             value=app_windows[0] if app_windows else ""
         )
 
         self.app_window_selector = ttk.Combobox(
-            window,
+            choose_window_frame,
             textvariable=self.app_window_var,
             values=app_windows,
             state="readonly",
             width=40,
         )
-        self.app_window_selector.pack(pady=5)
+        self.app_window_selector.pack(side=tk.LEFT)
         self.app_window_selector.bind(
             "<<ComboboxSelected>>", self.on_app_window_change
         )

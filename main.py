@@ -41,6 +41,7 @@ class WebcamApp:
         self.window = window
         self.window.title("Webcam Viewer")
         self.run = False
+        self.number_of_people = 0
 
 
         # ---------- Detect Webcams ----------
@@ -84,6 +85,28 @@ class WebcamApp:
         self.app_window_selector.bind(
             "<<ComboboxSelected>>", self.on_app_window_change
         )
+
+        # ---------- Number of People Entry ----------
+        self.number_of_people_var = tk.IntVar(value=0)
+
+        people_frame = ttk.Frame(window)
+        people_frame.pack(pady=5)
+
+        ttk.Label(
+            people_frame,
+            text="Number of people:",
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
+        self.people_entry = ttk.Entry(
+            people_frame,
+            textvariable=self.number_of_people_var,
+            width=5
+        )
+        self.people_entry.pack(side=tk.LEFT)
+
+        # Update value when user presses Enter or leaves field
+        self.people_entry.bind("<Return>", self.on_people_change)
+        self.people_entry.bind("<FocusOut>", self.on_people_change)
 
         # ---------- Start Button ----------
         self.start_button = ttk.Button(
@@ -174,7 +197,7 @@ class WebcamApp:
                 frame = self.label_annotator.annotate(scene=frame, detections=detections, labels=labels)
 
                 number = len(detections)
-                if (0 < number) and self.run is True:
+                if (self.number_of_people < number) and self.run is True:
                     hwnd, title = self.windows[self.target_window_number]
                     switch_to_window(hwnd, title)
                     self.run = False
@@ -205,6 +228,18 @@ class WebcamApp:
         self.run_state_var.set("Running")
         self.run_state_label.config(foreground="green")
         print("Detection started")
+    
+    def on_people_change(self, _: tk.Event = None) -> None:
+        try:
+            value = int(self.number_of_people_var.get())
+            if value < 0:
+                raise ValueError
+            self.number_of_people = value
+            print("Number of people set to:", self.number_of_people)
+        except ValueError:
+            # Reset to previous valid value
+            self.number_of_people_var.set(self.number_of_people)
+
 
 
 
